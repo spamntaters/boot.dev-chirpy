@@ -12,7 +12,7 @@ import (
 )
 
 func HashPassword(password string) (string, error) {
-	const PASSWORD_COST = 20
+	const PASSWORD_COST = 10
 	hash, err := bcrypt.GenerateFromPassword([]byte(password), PASSWORD_COST)
 	return string(hash), err
 }
