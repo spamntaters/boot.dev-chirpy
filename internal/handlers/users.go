@@ -11,11 +11,16 @@ import (
 )
 
 type UserResponse struct {
-	ID        string `json:"id"`
-	CreatedAt string `json:"created_at"`
-	UpdatedAt string `json:"updated_at"`
-	Email     string `json:"email"`
-	Token     string `json:"token,omitempty"`
+	ID           string `json:"id"`
+	CreatedAt    string `json:"created_at"`
+	UpdatedAt    string `json:"updated_at"`
+	Email        string `json:"email"`
+	Token        string `json:"token,omitempty"`
+	RefreshToken string `json:"refresh_token,omitempty"`
+}
+
+type RefreshTokenResponse struct {
+	Token string `json:"token"`
 }
 
 func HandleCreateUser(cfg *api.Config) http.HandlerFunc {
@@ -58,9 +63,8 @@ func HandleCreateUser(cfg *api.Config) http.HandlerFunc {
 func HandleLogin(cfg *api.Config) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		type parameters struct {
-			Email            string `json:"email"`
-			Password         string `json:"password"`
-			ExpiresInSeconds int64  `json:"expires_in_seconds"`
+			Email    string `json:"email"`
+			Password string `json:"password"`
 		}
 		decoder := json.NewDecoder(r.Body)
 		params := parameters{}
@@ -70,9 +74,6 @@ func HandleLogin(cfg *api.Config) http.HandlerFunc {
 			return
 		}
 		expireDuration := 1 * time.Hour
-		if params.ExpiresInSeconds != 0 {
-			expireDuration = time.Second * time.Duration(params.ExpiresInSeconds)
-		}
 		data, err := cfg.DB.GetUserByEmail(r.Context(), params.Email)
 		if err != nil {
 			api.RespondWithError(w, http.StatusNotFound, "User not found", err)
@@ -87,12 +88,25 @@ func HandleLogin(cfg *api.Config) http.HandlerFunc {
 			api.RespondWithError(w, http.StatusInternalServerError, "Something went wrong", err)
 			return
 		}
+
+		refreshToken, err := auth.MakeRefreshToken()
+		if err != nil {
+			api.RespondWithError(w, http.StatusInternalServerError, "Something went wrong", err)
+			return
+		}
+
+		cfg.DB.CreateRefreshToken(r.Context(), database.CreateRefreshTokenParams{
+			Token:  refreshToken,
+			UserID: data.ID,
+		})
+
 		user := UserResponse{
-			ID:        data.ID.String(),
-			CreatedAt: data.CreatedAt.Format(time.RFC3339),
-			UpdatedAt: data.UpdatedAt.Format(time.RFC3339),
-			Email:     data.Email,
-			Token:     token,
+			ID:           data.ID.String(),
+			CreatedAt:    data.CreatedAt.Format(time.RFC3339),
+			UpdatedAt:    data.UpdatedAt.Format(time.RFC3339),
+			Email:        data.Email,
+			Token:        token,
+			RefreshToken: refreshToken,
 		}
 		api.RespondWithJSON(w, http.StatusOK, user)
 	}
@@ -110,5 +124,44 @@ func HandleResetUsers(cfg *api.Config) http.HandlerFunc {
 			return
 		}
 		w.WriteHeader(http.StatusOK)
+	}
+}
+
+func HandleRefreshToken(cfg *api.Config) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		refreshToken, err := auth.GetBearerToken(r.Header)
+		if err != nil {
+			api.RespondWithError(w, http.StatusUnauthorized, "Invlaid Refresh token", err)
+			return
+		}
+		userID, err := cfg.DB.GetUserFromRefreshToken(r.Context(), refreshToken)
+		if err != nil {
+			api.RespondWithError(w, http.StatusUnauthorized, "Invalid Refresh token", err)
+			return
+		}
+
+		expireDuration := 1 * time.Hour
+
+		token, err := auth.MakeJWT(userID, cfg.Secret, expireDuration)
+		if err != nil {
+			api.RespondWithError(w, http.StatusInternalServerError, "Something went wrong", err)
+			return
+		}
+
+		api.RespondWithJSON(w, http.StatusOK, RefreshTokenResponse{
+			Token: token,
+		})
+	}
+}
+
+func HandleRevokeToken(cfg *api.Config) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		refreshToken, err := auth.GetBearerToken(r.Header)
+		if err != nil {
+			api.RespondWithError(w, http.StatusUnauthorized, "Invlaid Refresh token", err)
+			return
+		}
+		cfg.DB.RevokeRefreshToken(r.Context(), refreshToken)
+		api.RespondWithJSON(w, http.StatusNoContent, nil)
 	}
 }
