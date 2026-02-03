@@ -10,6 +10,11 @@ import (
 	"github.com/spamntaters/boot.dev-chirpy/internal/database"
 )
 
+type UserInput struct {
+	Password string `json:"password"`
+	Email    string `json:"email"`
+}
+
 type UserResponse struct {
 	ID           string `json:"id"`
 	CreatedAt    string `json:"created_at"`
@@ -25,12 +30,8 @@ type RefreshTokenResponse struct {
 
 func HandleCreateUser(cfg *api.Config) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		type parameters struct {
-			Password string `json:"password"`
-			Email    string `json:"email"`
-		}
 		decoder := json.NewDecoder(r.Body)
-		params := parameters{}
+		params := UserInput{}
 		err := decoder.Decode(&params)
 		if err != nil {
 			api.RespondWithError(w, http.StatusInternalServerError, "Something went wrong", err)
@@ -62,12 +63,8 @@ func HandleCreateUser(cfg *api.Config) http.HandlerFunc {
 
 func HandleLogin(cfg *api.Config) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		type parameters struct {
-			Email    string `json:"email"`
-			Password string `json:"password"`
-		}
 		decoder := json.NewDecoder(r.Body)
-		params := parameters{}
+		params := UserInput{}
 		err := decoder.Decode(&params)
 		if err != nil {
 			api.RespondWithError(w, http.StatusBadRequest, "Invalid request body", err)
@@ -163,5 +160,50 @@ func HandleRevokeToken(cfg *api.Config) http.HandlerFunc {
 		}
 		cfg.DB.RevokeRefreshToken(r.Context(), refreshToken)
 		api.RespondWithJSON(w, http.StatusNoContent, nil)
+	}
+}
+
+func HandleUpdateUser(cfg *api.Config) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		token, err := auth.GetBearerToken(r.Header)
+		if err != nil {
+			api.RespondWithError(w, http.StatusUnauthorized, "Invalid Authorization", err)
+			return
+		}
+		userId, err := auth.ValidateJWT(token, cfg.Secret)
+		if err != nil {
+			api.RespondWithError(w, http.StatusUnauthorized, "Invalid Authorization", err)
+			return
+		}
+		decoder := json.NewDecoder(r.Body)
+		params := UserInput{}
+		err = decoder.Decode(&params)
+		if err != nil {
+			api.RespondWithError(w, http.StatusBadRequest, "Invalid request body", err)
+			return
+		}
+		hashedPassword, err := auth.HashPassword(params.Password)
+		if err != nil {
+			api.RespondWithError(w, http.StatusInternalServerError, "Something went wrong", err)
+			return
+		}
+		processedParams := database.UpdateUserParams{
+			ID:             userId,
+			Email:          params.Email,
+			HashedPassword: hashedPassword,
+		}
+		data, err := cfg.DB.UpdateUser(r.Context(), processedParams)
+		if err != nil {
+			api.RespondWithError(w, http.StatusInternalServerError, "Something went wrong", err)
+			return
+		}
+		user := UserResponse{
+			ID:        data.ID.String(),
+			CreatedAt: data.CreatedAt.Format(time.RFC3339),
+			UpdatedAt: data.UpdatedAt.Format(time.RFC3339),
+			Email:     data.Email,
+		}
+
+		api.RespondWithJSON(w, http.StatusOK, user)
 	}
 }

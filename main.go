@@ -62,6 +62,7 @@ func setupRoutes(cfg *api.Config, filePathRoot string) *http.ServeMux {
 
 	// User routes
 	mux.HandleFunc("POST /api/users", handlers.HandleCreateUser(cfg))
+	mux.HandleFunc("PUT /api/users", handlers.HandleUpdateUser(cfg))
 	mux.HandleFunc("POST /api/login", handlers.HandleLogin(cfg))
 	mux.HandleFunc("POST /api/refresh", handlers.HandleRefreshToken(cfg))
 	mux.HandleFunc("POST /api/revoke", handlers.HandleRevokeToken(cfg))
