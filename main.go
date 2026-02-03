@@ -71,6 +71,7 @@ func setupRoutes(cfg *api.Config, filePathRoot string) *http.ServeMux {
 	mux.HandleFunc("POST /api/chirps", handlers.HandleCreateChirp(cfg))
 	mux.HandleFunc("GET /api/chirps", handlers.HandleGetAllChirps(cfg))
 	mux.HandleFunc("GET /api/chirps/{chirpID}", handlers.HandleGetChirpByID(cfg))
+	mux.HandleFunc("DELETE /api/chirps/{chirpID}", handlers.HandleDeleteChirpByID(cfg))
 
 	return mux
 }
