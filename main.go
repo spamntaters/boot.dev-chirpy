@@ -73,6 +73,9 @@ func setupRoutes(cfg *api.Config, filePathRoot string) *http.ServeMux {
 	mux.HandleFunc("GET /api/chirps/{chirpID}", handlers.HandleGetChirpByID(cfg))
 	mux.HandleFunc("DELETE /api/chirps/{chirpID}", handlers.HandleDeleteChirpByID(cfg))
 
+	// Polka webook
+	mux.HandleFunc("POST /api/polka/webhooks", handlers.HandlePolkaEvent(cfg))
+
 	return mux
 }
 

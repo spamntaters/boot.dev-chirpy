@@ -22,6 +22,7 @@ type UserResponse struct {
 	Email        string `json:"email"`
 	Token        string `json:"token,omitempty"`
 	RefreshToken string `json:"refresh_token,omitempty"`
+	IsChirpyRed  bool   `json:"is_chirpy_red"`
 }
 
 type RefreshTokenResponse struct {
@@ -52,10 +53,11 @@ func HandleCreateUser(cfg *api.Config) http.HandlerFunc {
 			return
 		}
 		user := UserResponse{
-			ID:        data.ID.String(),
-			CreatedAt: data.CreatedAt.Format(time.RFC3339),
-			UpdatedAt: data.UpdatedAt.Format(time.RFC3339),
-			Email:     data.Email,
+			ID:          data.ID.String(),
+			CreatedAt:   data.CreatedAt.Format(time.RFC3339),
+			UpdatedAt:   data.UpdatedAt.Format(time.RFC3339),
+			Email:       data.Email,
+			IsChirpyRed: data.IsChirpyRed,
 		}
 		api.RespondWithJSON(w, http.StatusCreated, user)
 	}
@@ -104,6 +106,7 @@ func HandleLogin(cfg *api.Config) http.HandlerFunc {
 			Email:        data.Email,
 			Token:        token,
 			RefreshToken: refreshToken,
+			IsChirpyRed:  data.IsChirpyRed,
 		}
 		api.RespondWithJSON(w, http.StatusOK, user)
 	}
@@ -202,6 +205,7 @@ func HandleUpdateUser(cfg *api.Config) http.HandlerFunc {
 			CreatedAt: data.CreatedAt.Format(time.RFC3339),
 			UpdatedAt: data.UpdatedAt.Format(time.RFC3339),
 			Email:     data.Email,
+			IsChirpyRed: data.IsChirpyRed,
 		}
 
 		api.RespondWithJSON(w, http.StatusOK, user)
